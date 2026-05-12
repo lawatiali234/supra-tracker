@@ -105,7 +105,7 @@ export interface Fluid {
 }
 
 export const SERVICE_INTERVALS_KM: Record<ServiceType, number | null> = {
-  oil: 5240,
+  oil: 6000,
   brake_fluid: 30000,
   // Tuned-car interval: 25-30k km (vs 60k OEM B58 spec)
   spark_plugs: 28000,
