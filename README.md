@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Supra Tracker
 
-## Getting Started
+Personal tracker for an MkV Toyota Supra. Logs mods, service history, open issues, acceleration pulls, and fluids on hand. Single user, deployed to Vercel, persisted in Upstash Redis.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4
+- Upstash Redis (`@upstash/redis`)
+- recharts for the pulls timeline
+- lucide-react icons, date-fns, clsx
+
+## Pages
+
+- `/` Dashboard — current mileage, oil-life gauge, next-service-due cards, recent service.
+- `/mods` — categorized mod log (tune, intake/exhaust, brakes, wheels, exterior, other).
+- `/service` — chronological service entries with next-due summary.
+- `/issues` — open / monitoring / resolved columns, with note threads per issue.
+- `/pulls` — 50–100, 80–160, 100–200 km/h times with timeline chart.
+- `/fluids` — what's on the shelf, low-stock and expiry warnings.
+
+## Setup
 
 ```bash
+npm install
+cp .env.example .env.local   # fill with your Upstash REST URL + token
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Upstash setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Create a Redis database at https://console.upstash.com.
+2. Copy `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` into `.env.local`.
+3. Restart `npm run dev`.
 
-## Learn More
+## Deploying to Vercel
 
-To learn more about Next.js, take a look at the following resources:
+1. Push this repo to GitHub.
+2. Import the repo at https://vercel.com/new. Framework auto-detected.
+3. In the project Storage tab, attach an Upstash Redis integration — it injects the two env vars automatically across Production/Preview/Development.
+4. Deploy.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+No `vercel.json` is needed.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Data model
 
-## Deploy on Vercel
+One Redis key per category, value is a JSON array (the SDK serializes for you):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Key | Shape |
+|---|---|
+| `supra:profile` | `Profile` object |
+| `supra:mileage_log` | `MileageLogEntry[]` |
+| `supra:mods` | `Mod[]` |
+| `supra:service` | `ServiceEntry[]` |
+| `supra:issues` | `Issue[]` (notes inline) |
+| `supra:pulls` | `Pull[]` |
+| `supra:fluids` | `Fluid[]` |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `lib/types.ts` for the exact interfaces.
+
+## v2 backlog
+
+- Pre-seeded data (your real mods, service history, current mileage)
+- Photos / file uploads (Vercel Blob)
+- Edit service intervals from UI
+- Export/import CSV/JSON
+- Vehicle history PDF export
+- BimmerLink fault-code CSV import
+- Multi-vehicle support

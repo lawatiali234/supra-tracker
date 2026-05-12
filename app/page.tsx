@@ -1,65 +1,204 @@
-import Image from "next/image";
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+import { StatCard } from "@/components/StatCard";
+import { OilGauge } from "@/components/OilGauge";
+import { MileageQuickForm } from "@/components/forms/MileageQuickForm";
+import { DataTable, type Column } from "@/components/DataTable";
+import { EmptyState } from "@/components/EmptyState";
+import Link from "next/link";
+import { ChevronRight, Gauge } from "lucide-react";
+import {
+  fetchMileageLog,
+  fetchMods,
+  fetchProfile,
+  fetchService,
+} from "@/lib/fetch-data";
+import {
+  mileageProjection,
+  nextServiceDue,
+  oilStatus,
+  sumCosts,
+} from "@/lib/predictions";
+import { formatDate, formatKm, formatOMR } from "@/lib/format";
+import {
+  SERVICE_TYPE_LABELS,
+  type ServiceEntry,
+  type ServiceType,
+} from "@/lib/types";
+
+const NEXT_DUE_TYPES: ServiceType[] = [
+  "oil",
+  "brake_fluid",
+  "spark_plugs",
+  "coolant",
+];
+
+export default async function DashboardPage() {
+  const [profile, service, mods, mileageLog] = await Promise.all([
+    fetchProfile(),
+    fetchService(),
+    fetchMods(),
+    fetchMileageLog(),
+  ]);
+
+  const oil = oilStatus(service, profile);
+  const projection = mileageProjection(mileageLog);
+  const totalMods = sumCosts(mods);
+  const totalService = sumCosts(service);
+  const recent = service.slice(0, 5);
+
+  const columns: Column<ServiceEntry>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (r) => <span className="num">{formatDate(r.date)}</span>,
+    },
+    {
+      key: "mileage",
+      header: "Mileage",
+      align: "right",
+      render: (r) => <span className="num">{formatKm(r.mileage)}</span>,
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (r) => SERVICE_TYPE_LABELS[r.type] ?? r.type,
+    },
+    {
+      key: "cost",
+      header: "Cost",
+      align: "right",
+      render: (r) => <span className="num">{formatOMR(r.cost)}</span>,
+    },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-fg-dim">
+            {profile.plate ? `${profile.plate} · ` : ""}MkV Supra at a glance
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Current mileage"
+          value={profile.currentMileage > 0 ? formatKm(profile.currentMileage) : "—"}
+          sub={
+            projection.hasData
+              ? `~${Math.round(projection.kmPerMonth ?? 0).toLocaleString()} km / month`
+              : "Log mileage to project usage"
+          }
+          accent
+        />
+        <StatCard
+          label="Mods spend"
+          value={formatOMR(totalMods)}
+          sub={`${mods.length} ${mods.length === 1 ? "mod" : "mods"}`}
+        />
+        <StatCard
+          label="Maintenance spend"
+          value={formatOMR(totalService)}
+          sub={`${service.length} ${service.length === 1 ? "entry" : "entries"}`}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <OilGauge
+          percentUsed={oil.percentUsed}
+          kmRemaining={oil.kmUntilDue}
+          intervalKm={oil.intervalKm}
+          lastOilMileage={oil.lastOilMileage}
+          hasData={oil.hasData}
+        />
+
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <h3 className="text-xs font-medium uppercase tracking-widest text-fg-muted">
+            Log mileage
+          </h3>
+          <p className="mt-1 text-xs text-fg-dim">
+            Drop in your current odo reading.
+          </p>
+          <div className="mt-4">
+            <MileageQuickForm />
+          </div>
         </div>
-      </main>
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <h3 className="mb-4 text-xs font-medium uppercase tracking-widest text-fg-muted">
+          Next service due
+        </h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {NEXT_DUE_TYPES.map((t) => {
+            const d = nextServiceDue(service, profile, t);
+            return (
+              <div
+                key={t}
+                className="rounded-lg border border-border bg-bg p-3"
+              >
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
+                  {SERVICE_TYPE_LABELS[t]}
+                </div>
+                {d.hasData ? (
+                  <>
+                    <div
+                      className={`num mt-1 text-lg font-semibold ${
+                        (d.kmUntilDue ?? 0) < 0
+                          ? "text-danger"
+                          : (d.kmUntilDue ?? 0) < 1000
+                            ? "text-warning"
+                            : "text-fg"
+                      }`}
+                    >
+                      {(d.kmUntilDue ?? 0) >= 0
+                        ? `in ${formatKm(d.kmUntilDue ?? 0)}`
+                        : `${formatKm(-(d.kmUntilDue ?? 0))} overdue`}
+                    </div>
+                    <div className="num mt-0.5 text-[11px] text-fg-muted">
+                      at {formatKm(d.nextDueMileage ?? 0)}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-1 text-xs text-fg-muted">
+                    Log a {SERVICE_TYPE_LABELS[t].toLowerCase()} to predict.
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-end justify-between">
+          <h3 className="text-xs font-medium uppercase tracking-widest text-fg-muted">
+            Recent service
+          </h3>
+          <Link
+            href="/service"
+            className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+          >
+            View all
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <DataTable
+          columns={columns}
+          rows={recent}
+          rowKey={(r) => r.id}
+          empty={
+            <EmptyState
+              icon={<Gauge className="h-7 w-7" />}
+              title="No service logged yet"
+              description="Add an oil change, plug swap, or brake fluid flush from the Service page to unlock predictions."
+            />
+          }
+        />
+      </section>
     </div>
   );
 }
